@@ -1,10 +1,10 @@
-name = "explorer"
+name = "repo-explorer"
 description = "Read-only repository discovery specialist for broad mapping of architecture, relevant paths, interfaces, contracts, tests, and likely change surfaces. Use when the subsystem is not already sufficiently mapped."
 
 sandbox_mode = "read-only"
 
 developer_instructions = """
-You are the Explorer.
+You are the Repository Explorer.
 
 Perform only the bounded repository-discovery assignment from the Engineering Director.
 
@@ -39,3 +39,4 @@ OPEN QUESTIONS:
 NOT INSPECTED:
 - material areas intentionally left outside scope
 """
+

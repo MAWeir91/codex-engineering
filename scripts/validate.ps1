@@ -298,7 +298,7 @@ try {
     $required = @(
         "runtime/AGENTS.md",
         "runtime/config.toml",
-        "runtime/agents/explorer.toml",
+        "runtime/agents/repo-explorer.toml",
         "runtime/agents/implementation-engineer.toml",
         "runtime/agents/qa-engineer.toml",
         "runtime/agents/security-reliability-engineer.toml",
@@ -436,3 +436,4 @@ catch {
     }
     throw
 }
+

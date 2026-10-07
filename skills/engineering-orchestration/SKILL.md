@@ -38,7 +38,7 @@ For provisional model/effort routing, read [references/routing.md](references/ro
 ## Operating pattern
 
 1. Orient only enough to understand the request, identify obvious scope, and decide whether delegation is useful.
-2. If broad discovery is needed, assign Explorer and reuse its working map. Do not independently remap the same subsystem afterward.
+2. If broad discovery is needed, assign `repo-explorer` and reuse its working map. Do not independently remap the same subsystem afterward.
 3. Assign one implementation owner per coherent change. Parallel implementation is appropriate only for genuinely independent ownership boundaries with stable interfaces.
 4. When independent QA is warranted, hand it the acceptance criteria, working map, changed areas, implementation evidence, relevant contracts, and known blockers.
 5. Add Security / Reliability only when the risk profile justifies it. It may run alongside QA after the implementation surface is stable when their work is independent.
@@ -70,3 +70,4 @@ If required evidence is blocked, preserve the distinction between defective code
 If QA establishes a product defect, route the repair to an implementation owner and use independent QA to verify the repaired acceptance boundary when practical.
 
 Keep final reporting concise: outcome, material changes, validation evidence, unresolved risks or blockers, and publication status.
+
