@@ -1,0 +1,60 @@
+#:schema https://developers.openai.com/codex/config-schema.json
+
+# Codex Engineering v1 managed baseline.
+# Keep machine-specific settings (desktop UI, notify paths, marketplaces, MCP
+# runtime paths, project trust entries, etc.) out of this source-controlled file.
+# The installer should merge the managed settings below into the live
+# ~/.codex/config.toml rather than blindly replacing machine-owned settings.
+
+model = "gpt-6.1-sol"
+model_reasoning_effort = "medium"
+
+# Interactive development default: allow workspace edits while prompting when
+# Codex needs authority outside the sandbox.
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
+# Use the safer pre-indexed web-search path by default. A task can explicitly
+# request fresher browsing when recency materially matters.
+web_search = "cached"
+
+# Keep persistent instruction context bounded. Raise only when project evals
+# demonstrate that necessary project guidance is being truncated.
+project_doc_max_bytes = 16384
+project_doc_fallback_filenames = []
+
+[agents]
+enabled = true
+max_concurrent_threads_per_session = 3
+interrupt_message = true
+
+# Intentionally leave default_subagent_model and
+# default_subagent_reasoning_effort unset. The Engineering Director selects
+# model and effort per bounded assignment using engineering-orchestration.
+
+[features]
+multi_agent = true
+memories = false
+
+[memories]
+generate_memories = false
+use_memories = false
+
+[skills]
+# Budget for the available-skills discovery catalog, not the loaded SKILL.md
+# bodies. Increase only if the skill library grows enough to require it.
+max_context_tokens = 3000
+
+[sandbox_workspace_write]
+# Additional writable roots beyond the active workspace.
+writable_roots = []
+
+# Commands do not receive outbound network access merely because the workspace
+# is writable. Hosted web search, MCP, and app capabilities are separate.
+network_access = false
+
+[windows]
+# Current Codex guidance recommends elevated native sandboxing on Windows.
+# If setup or local policy prevents it, the deployment script may fall back to
+# "unelevated" after an explicit validation step.
+sandbox = "elevated"

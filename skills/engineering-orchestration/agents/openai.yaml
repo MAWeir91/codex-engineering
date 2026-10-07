@@ -1,0 +1,7 @@
+interface:
+  display_name: "Engineering Orchestration"
+  short_description: "Coordinate substantial multi-agent engineering work"
+  default_prompt: "Use $engineering-orchestration to coordinate this substantial software-development task with only the specialists and validation needed."
+
+policy:
+  allow_implicit_invocation: true
