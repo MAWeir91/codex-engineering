@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "name": "codex-engineering",
+  "installRecord": ".codex-engineering-install.json",
+  "managed": [
+    {
+      "source": "runtime/AGENTS.md",
+      "destination": "AGENTS.md",
+      "kind": "file"
+    },
+    {
+      "source": "runtime/config.toml",
+      "destination": "config.toml",
+      "kind": "file"
+    },
+    {
+      "source": "runtime/agents",
+      "destination": "agents",
+      "kind": "tree"
+    },
+    {
+      "source": "skills",
+      "destination": "skills",
+      "kind": "tree"
+    }
+  ],
+  "protectedDestinations": [
+    "auth.json",
+    ".codex-global-state.json",
+    ".sandbox",
+    ".sandbox-secrets",
+    ".tmp",
+    ".chatgpt-projects",
+    "attachments",
+    "backups",
+    "logs",
+    "memories",
+    "packages",
+    "plugins",
+    "sessions",
+    "visualizations",
+    "worktrees"
+  ]
+}
