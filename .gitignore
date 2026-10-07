@@ -1,0 +1,29 @@
+# Secrets / credentials
+.env
+.env.*
+*.key
+*.pem
+*.pfx
+*.p12
+secrets/
+credentials/
+
+# Codex runtime state
+.codex/
+.codex-backup-*/
+auth.json
+
+# Local/editor state
+.vscode/
+.idea/
+*.user
+*.log
+.DS_Store
+Thumbs.db
+
+# Test/eval output
+tmp/
+temp/
+artifacts/
+eval-results/
+coverage/
