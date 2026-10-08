@@ -1,0 +1,16 @@
+{
+  "name": "focused",
+  "executable": "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+  "arguments": [
+    "-NoProfile",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-File",
+    "%TEMP%\\\\mr-pilot-prep-<redacted>\\implementation\\candidate\\evals\\validate\\test-validator-root.ps1",
+    "-RepoRoot",
+    "%TEMP%\\\\mr-pilot-prep-<redacted>\\implementation\\candidate"
+  ],
+  "exitCode": 1,
+  "output": "powershell.exe : Split-Path : Cannot bind argument to parameter 'Path' because it is an empty string.\r\nAt %TEMP%\\\\mr-pilot-prep-<redacted>\\implementation\\candidate\\eva\r\nls\\validate\\test-validator-root.ps1:15 char:16\r\n+     $output = (& $script:WindowsPowerShell @Arguments 2>&1 | Out-Stri ...\r\n+                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n    + CategoryInfo          : NotSpecified: (Split-Path : Ca...n empty string.:String) [], RemoteException\r\n    + FullyQualifiedErrorId : NativeCommandError\r\n \r\n",
+  "version": "5.1.26100.9444"
+}

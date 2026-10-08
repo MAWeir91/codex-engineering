@@ -1,0 +1,14 @@
+{
+  "name": "empty",
+  "executable": "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+  "arguments": [
+    "-NoProfile",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-Command",
+    "& '%TEMP%\\\\mr-pilot-prep-<redacted>\\discovery\\candidate\\scripts\\validate.ps1' -RepoRoot ([string]::Empty)"
+  ],
+  "exitCode": 1,
+  "output": "FAIL  Exception calling \"GetFullPath\" with \"1\" argument(s): \"The path is not of a legal form.\"\r\nException calling \"GetFullPath\" with \"1\" argument(s): \"The path is not of a legal form.\"\r\nAt %TEMP%\\\\mr-pilot-prep-<redacted>\\discovery\\candidate\\scripts\\\r\nvalidate.ps1:312 char:5\r\n+     $RepoRoot = [System.IO.Path]::GetFullPath($RepoRoot)\r\n+     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n    + CategoryInfo          : NotSpecified: (:) [], ParentContainsErrorRecordException\r\n    + FullyQualifiedErrorId : ArgumentException\r\n \r\n",
+  "version": "5.1.26100.9444"
+}

@@ -1,0 +1,17 @@
+{
+  "name": "malformed",
+  "executable": "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+  "arguments": [
+    "-NoProfile",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-File",
+    "%TEMP%\\\\mr-pilot-prep-<redacted>\\baseline-final\\malformed\\scripts\\validate.ps1",
+    "-RepoRoot",
+    "%TEMP%\\\\mr-pilot-prep-<redacted>\\baseline-final\\malformed",
+    "-Quiet"
+  ],
+  "exitCode": 1,
+  "output": "manifest.json is invalid JSON: Invalid object passed in, ':' or '}' expected. (7): {broken\r\nAt %TEMP%\\\\mr-pilot-prep-<redacted>\\baseline-final\\malformed\\scr\r\nipts\\validate.ps1:323 char:9\r\n+         throw \"manifest.json is invalid JSON: $($_.Exception.Message) ...\r\n+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n    + CategoryInfo          : OperationStopped: (manifest.json i...d. (7): {broken:String) [], RuntimeException\r\n    + FullyQualifiedErrorId : manifest.json is invalid JSON: Invalid object passed in, ':' or '}' expected. (7): {brok \r\n   en\r\n \r\n",
+  "version": "5.1.26100.9444"
+}

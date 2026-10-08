@@ -1,0 +1,18 @@
+# Independent QA — Phase 6 pilot preparation
+
+**Status: PASS for bounded preparation and fixture health. Candidate launch remains conditional.** This verdict covers repeatable MR-001/MR-002 inputs, their reference/seed behavior, scoring completeness, and main-tree isolation. It does not establish candidate execution support or model quality.
+
+## Evidence
+
+- Reviewed `README.md`, `cases.json`, `PILOT.md`, and the preparation, verification, and probe scripts against the MR-001/MR-002 scope. The pilot is limited to four initial runs, uses the full pinned commit `356015018de0f835c0b6b52663d041f782d63ecd`, keeps oracle/probe material outside candidate checkouts, prohibits delegation/publication/config changes, and separately scores every criterion with PASS/FAIL/UNPROVEN. The scoring contract distinguishes first attempt from one optional repair and requires independent evidence. No model trials are claimed.
+- Under PowerShell 7.6.5, prepared four fresh disposable clones with the final `prepare-pilot.ps1`. Each preflight `verify-pilot.ps1` passed, and all four `fixture.json`/`seed.patch` hashes matched `freeze.json`. Each case had the expected 30-file inventory; MR-001 was clean and MR-002 had only `scripts/validate.ps1` modified with the specified seed diff. Repeated preparations produced identical hashes.
+- The final script's Windows PowerShell 5.1 fail-fast guard exited 1 with its version diagnostic and did not create the requested destination. This pins fixture serialization to the recorded preparation runtime while retaining Windows PowerShell 5.1 for validator behavior checks.
+- Ran `probe-pilot.ps1` on all four independent fixtures and re-ran `verify-pilot.ps1` afterward. Reference probes: omitted root, valid root, focused regression test, and quiet mode exited 0; explicit empty root and malformed manifest exited nonzero with the expected diagnostics. Seed probes: omitted-root and focused checks reproduced the intended `Split-Path` empty-string failure; explicit valid root and quiet mode passed; explicit empty root and malformed manifest retained their reference failures. Captured evidence files contain all six probe results per fixture. The first QA wrapper mistakenly checked `$LASTEXITCODE` after a script whose last expected child command exits nonzero; checking PowerShell script success (`$?`) resolved this harness-only false alarm. No product failure was inferred.
+- Director preparation evidence records the baseline/seed outcomes under Windows PowerShell 5.1.26100.9444, baseline quiet JSON, package hashes, and main-tree status. Review of `PREPARATION.md` and the source checklists found the required entry/data flow, ownership migration, transaction recovery limits, bootstrap/config test coverage, and evidence-backed risk rubric. No installer execution or runtime/config/routing edit was part of this QA.
+- QA reviewer model/effort are unavailable from session evidence. The MR-002 candidate baseline requests gpt-6-luna/medium; that requested value is not evidence of an actual model setting.
+
+## Limits and launch conditions
+
+No candidate session was run. Tool schemas only advertise the requested model/effort pairs. Before launch, the execution client must prove effective model/effort and enforce the identical restricted write/tool profile for both candidates; until then, permission isolation and actual settings are UNPROVEN. This does not invalidate fixture readiness, but it blocks model-specific conclusions. Sandbox restrictions required approved access for disposable Git metadata and probe evidence in the normal temp directory.
+
+No model-ranking, reliability-rate, token-savings, or routing-change claim follows from this evidence.

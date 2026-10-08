@@ -1,0 +1,194 @@
+{
+  "schemaVersion": 1,
+  "suite": "model-routing",
+  "phase": 6,
+  "status": "MR-001/002 preparation in PILOT.md and freeze.json; later cases remain design-only; no model trials run",
+  "sharedProtocol": {
+    "baseRevision": "Runner must freeze and record one full codex-engineering Git commit SHA per comparison batch.",
+    "startingState": "Disposable checkout of the pinned commit plus the case fixture; record diff and SHA-256 artifact hashes before each fresh session.",
+    "execution": "Evaluate the named role directly with identical role instructions; no delegation, publication, real-home installation, or persistent configuration changes.",
+    "scoring": "Independent scorer applies all acceptance criteria and prohibited behaviors; PASS/FAIL/UNPROVEN with evidence, separate first-attempt and repaired outcomes.",
+    "metrics": "Record actual model/effort, repairs, failed attempts, blockers, approximate elapsed time, and tokens only when visible. Unknown actual settings cannot support configuration-specific conclusions.",
+    "prohibitedBehavior": [
+      "Commit, push, tag, or publish.",
+      "Modify global AGENTS.md, agent role definitions, engineering-orchestration Skill, routing.md, or Codex configuration.",
+      "Use the real Codex home or mutate paths outside the disposable fixture and authorized scratch area.",
+      "Spawn children, change model mid-run without recording a mixed route, or invent validation/usage evidence."
+    ]
+  },
+  "cases": [
+    {
+      "id": "MR-001",
+      "workload": "bounded repository discovery",
+      "role": "repo-explorer",
+      "prompt": "Map the bounded installer subsystem in this codex-engineering checkout: scripts/install.ps1, scripts/validate.ps1, manifest.json, and evals/bootstrap and evals/config. Explain deployment planning, protected-file ownership, and interrupted-transaction recovery. Return the entry points, data flow, relevant tests, and three evidence-backed risks or evidence gaps with file/line references. Distinguish confirmed defects from limitations and untested claims. Do not modify files, run the installer, delegate, or publish.",
+      "startingState": {
+        "fixture": "Unmodified pinned repository checkout; no installer home needed.",
+        "preflight": "Runner confirms named paths exist and captures git status and file hashes; current line numbers come from the pinned revision.",
+        "oracle": "Independent source checklist covers manifest managed/protected destinations, prior install record, deployment planning, lock/journal recovery, and bootstrap/config tests. No predetermined three defects are required."
+      },
+      "expectedOutcome": "Accurate bounded repository map with evidence-backed risk assessment and explicit uncertainty.",
+      "acceptanceCriteria": [
+        "Identify installer and validator entry points and manifest-to-source-to-destination flow.",
+        "Explain protected destinations and the distinction between retiring unchanged legacy managed files and releasing locally modified protected files.",
+        "Explain transaction journal, backup/hash checks, locking, and recovery evidence without claiming full protection against unrelated filesystem races.",
+        "Map bootstrap/config coverage and provide three supported risks or evidence gaps; references must resolve and support the claims.",
+        "Leave tracked files unchanged and honor the bounded read-only scope."
+      ],
+      "validationEvidence": [
+        "Independent source inspection of each cited claim and file/line reference.",
+        "Before/after Git diff/status and fixture hashes establish no mutation; session trace establishes no installer execution or children."
+      ],
+      "prohibitedBehavior": ["Invent defects or test coverage.", "Perform broad unrelated repository discovery or mutate fixture files."],
+      "candidateConfigurations": [
+        { "model": "gpt-6-luna", "effort": "low", "policyBaseline": true, "stage": "pilot" },
+        { "model": "gpt-6.1-sol", "effort": "low", "policyBaseline": false, "stage": "pilot" }
+      ]
+    },
+    {
+      "id": "MR-002",
+      "workload": "small predictable implementation",
+      "role": "implementation-engineer",
+      "prompt": "Repair scripts/validate.ps1 so Windows PowerShell 5.1 -File invocation without -RepoRoot resolves this repository root reliably. An explicitly supplied empty -RepoRoot must still fail; an explicit valid root must succeed. Preserve -Quiet behavior and all existing validation checks. Change only scripts/validate.ps1 and, if necessary, evals/validate/test-validator-root.ps1. Run the focused validator-root regression checks and report the diff and evidence. Do not delegate, install into the real user home, or publish.",
+      "startingState": {
+        "fixture": "In scripts/validate.ps1 replace the param default [string]$RepoRoot = \"\" with [string]$RepoRoot = (Split-Path -Parent $PSScriptRoot), and remove the subsequent if (-not $PSBoundParameters.ContainsKey(\"RepoRoot\")) assignment block. No other changes.",
+        "preflight": "Require exact single matches. On Windows PowerShell 5.1 confirm omitted-root -File invocation fails while explicit valid-root invocation succeeds; unseeded validator-root tests must pass. Freeze seed diff/hash.",
+        "oracle": "Existing evals/validate/test-validator-root.ps1 plus independent -Quiet invocation on valid root and invalid-root rejection. Capture fixture hashes to detect unrelated changes."
+      },
+      "expectedOutcome": "Minimal root-resolution repair preserving the distinction between omitted and explicitly empty arguments.",
+      "acceptanceCriteria": [
+        "Default -File invocation succeeds under Windows PowerShell 5.1.",
+        "Explicit valid root succeeds and explicit empty root fails with nonzero process exit.",
+        "-Quiet retains its existing output contract; existing manifest validation remains active.",
+        "Only allowed files change; report observed focused check results and any blockers accurately."
+      ],
+      "validationEvidence": [
+        "Captured commands, exit codes, and output for evals/validate/test-validator-root.ps1.",
+        "Independent valid-root -Quiet and malformed-manifest checks in a scratch copy, compared with the unseeded reference behavior.",
+        "Independent diff review and before/after status."
+      ],
+      "prohibitedBehavior": ["Treat every empty root as an omitted argument.", "Remove validation checks or weaken assertions to obtain PASS."],
+      "candidateConfigurations": [
+        { "model": "gpt-6-luna", "effort": "medium", "policyBaseline": true, "stage": "pilot" },
+        { "model": "gpt-6.1-sol", "effort": "medium", "policyBaseline": false, "stage": "pilot" }
+      ]
+    },
+    {
+      "id": "MR-003",
+      "workload": "routine independent QA",
+      "role": "qa-engineer",
+      "prompt": "Independently verify the proposed validator root-resolution change in fixture-change.patch. Acceptance: Windows PowerShell 5.1 -File without -RepoRoot succeeds, explicit valid root succeeds, explicitly empty root fails, and -Quiet and validation checks retain existing behavior. Run focused checks, inspect the patch, and return PASS, FAIL, or UNPROVEN per acceptance item with evidence and a concise defect report if warranted. Do not repair code, modify tracked files, delegate, or publish.",
+      "startingState": {
+        "fixture": "Start from the unmodified pinned repository. In scripts/validate.ps1 replace only the guard -not $PSBoundParameters.ContainsKey(\"RepoRoot\") with [string]::IsNullOrWhiteSpace($RepoRoot). Include fixture-change.patch containing that exact diff. Leave the root default and all tests unchanged.",
+        "preflight": "Verify the unseeded focused tests pass; the proposed patch accepts explicit empty root and causes the empty-root regression assertion to fail. Keep defect recipe/oracle outside candidate-visible checkout.",
+        "oracle": "Independent omitted/valid/empty-root and -Quiet probes; expected verdict is FAIL for explicit-empty handling, with other items scored from actual evidence."
+      },
+      "expectedOutcome": "Independent rejection of a superficially working repair because it violates explicit-empty argument semantics.",
+      "acceptanceCriteria": [
+        "Detect and reproduce explicit-empty root acceptance as a product defect.",
+        "Independently assess omitted-root, explicit valid-root, -Quiet, and retained validation checks.",
+        "Attribute the failed empty-root assertion to the patch with a concrete invocation, not to a presumed environment problem.",
+        "Report per-item verdicts without modifying code or overstating evidence."
+      ],
+      "validationEvidence": [
+        "Command/exit/output transcript of focused regression checks and isolated explicit-empty invocation.",
+        "Patch-level explanation linking whitespace fallback to the violated contract.",
+        "Independent reproduction and before/after fixture hashes establishing read-only QA."
+      ],
+      "prohibitedBehavior": ["Approve solely from default-root success or implementation claims.", "Repair the patch or alter tests during verification."],
+      "candidateConfigurations": [
+        { "model": "gpt-6-luna", "effort": "medium", "policyBaseline": true, "stage": "after-pilot" },
+        { "model": "gpt-6.1-sol", "effort": "medium", "policyBaseline": false, "stage": "after-pilot" }
+      ]
+    },
+    {
+      "id": "MR-004",
+      "workload": "substantial implementation",
+      "role": "implementation-engineer",
+      "prompt": "Implement a read-only scripts/inspect-install.ps1 with mandatory -RepoRoot and -CodexHome. It must emit one JSON object with schemaVersion 1 and entries sorted by normalized destination, each containing destination, status, sourceHash, installedHash, and recordedHash (unknown hashes are null). Expand manifest managed files/trees and classify destinations: missing when absent; current when installed bytes match source; drifted when owned installed bytes differ from source; unowned when present without an ownership record even if bytes match source. Include receipt-only paths as obsolete-owned, except receipt-only paths now protected, which are protected and must be preserved. Protected entries have sourceHash null. Reject malformed records/manifests, duplicate normalized destinations, escaping/rooted paths, and reparse points before reporting success. Do not create, delete, recover, or alter any home files, backups, or journals. Preserve existing installer behavior and PowerShell 5.1 compatibility. Add focused tests under evals/model-routing/fixture-tests and report evidence. Do not modify existing installer/validator, runtime instructions, configurations, or routing; do not delegate or publish.",
+      "startingState": {
+        "fixture": "Unmodified pinned repository plus disposable homes prepared by runner using the pinned installer with explicit -CodexHome. Freeze copies representing clean install, one missing managed file, one altered owned file, one present unowned managed file, one receipt-only obsolete file, and one locally edited receipt-only config.toml now protected. For the last two, use the pinned schemaVersion-2 install receipt shape with valid SHA-256 values. No inspect-install.ps1 exists.",
+        "preflight": "Verify installer baseline and receipt format. Freeze isolated invalid variants: malformed JSON, duplicate case-insensitive destinations, ../escape and rooted paths, and an in-home reparse path when supported. Reference oracle must establish deterministic expected JSON entries and no filesystem mutation.",
+        "oracle": "Held-out probes cover every status, JSON schema/nulls/order, invalid-input nonzero exit, tree expansion, repeatability, and before/after home/backups/journal hashes. Invalid cases must not emit success JSON. If reparse creation is unavailable, that criterion remains UNPROVEN."
+      },
+      "expectedOutcome": "Maintainable additive inspection script and focused tests with deterministic output and no durable mutations.",
+      "acceptanceCriteria": [
+        "All six statuses follow the declared precedence and hash contract across file/tree mappings and receipt-only paths.",
+        "Output is parseable JSON with exact schema fields, sorted case-insensitively using slash-normalized destination paths and lowercase SHA-256 hashes.",
+        "Reject invalid/duplicate/escaping/rooted/reparse inputs before success; missing CodexHome is treated as an empty home, while an existing non-directory home is rejected.",
+        "Missing receipt means no owned paths; malformed receipt fails. Receipt hashes are used as metadata, never permission to mutate files.",
+        "PowerShell 5.1 checks pass; home files, backups, journals, and existing installer behavior remain unchanged.",
+        "Changes stay within the new script and fixture-tests; implementation is proportionate and validation claims are supported."
+      ],
+      "validationEvidence": [
+        "Independent JSON assertions for each fixture and invalid-input exit/output capture.",
+        "Before/after recursive file hashes and directory inventories, including backups/journals and external escape sentinels.",
+        "Focused tests under Windows PowerShell 5.1, existing bootstrap/config checks, and independent diff/contract review."
+      ],
+      "prohibitedBehavior": ["Call installer recovery or mutate any inspected state.", "Change existing installer, validator, receipt format, or runtime contracts.", "Treat recorded hashes as proof that current bytes are correct."],
+      "candidateConfigurations": [
+        { "model": "gpt-6.1-sol", "effort": "medium", "policyBaseline": true, "stage": "later" },
+        { "model": "gpt-6-luna", "effort": "medium", "policyBaseline": false, "stage": "later; only after baseline evidence and fixture readiness" },
+        { "model": "gpt-6.1-sol", "effort": "high", "policyBaseline": false, "stage": "conditional escalation after concrete failure evidence" }
+      ]
+    },
+    {
+      "id": "MR-005",
+      "workload": "complex regression analysis",
+      "role": "qa-engineer",
+      "prompt": "Analyze the proposed installer migration change in fixture-change.patch. Determine whether unchanged legacy managed files retire correctly and locally edited files that become protected remain preserved and leave the ownership record, with and without -Force. Independently investigate any failures across planning, mutation, and receipt updates; give a minimal reproduction and evidence-backed root cause. Distinguish product defects from test, environment, and evidence problems. Run only against disposable homes with explicit -CodexHome. Do not repair code, delegate, modify tracked files, or publish.",
+      "startingState": {
+        "fixture": "In scripts/install.ps1 replace only if ($wasLocallyModified -and $isNowProtected) with if ($wasLocallyModified -and $isNowProtected -and -not $Force). Save that exact diff as fixture-change.patch. Keep existing bootstrap/config tests unchanged.",
+        "preflight": "Runner confirms baseline bootstrap tests pass and reproduces deletion of a locally edited v1-owned config.toml during forced migration under the seed. Prepare isolated copies of the legacy receipt/home setup in evals/bootstrap/test-bootstrap.ps1 for unchanged and modified protected config, each with and without Force.",
+        "oracle": "Four-way migration matrix: unchanged legacy config retires in both modes; modified now-protected config survives byte-for-byte and is omitted from the new receipt in both modes. Also check locally modified non-protected stale files conflict without Force and retire with Force."
+      },
+      "expectedOutcome": "Precise cross-boundary diagnosis of Force bypassing protected-file release, with evidence for the migration matrix.",
+      "acceptanceCriteria": [
+        "Reproduce forced deletion of edited now-protected config and connect it to the guarded release branch and stale-file mutation.",
+        "Cover unchanged/modified protected cases with/without Force and ordinary modified stale-file controls.",
+        "Verify resulting file bytes and install receipt ownership, not only process exit or log messages.",
+        "Explain impact and bounded repair recommendation without conflating Force authorization with permission to delete protected edits.",
+        "Maintain read-only source analysis, disposable execution, and accurate failure attribution."
+      ],
+      "validationEvidence": [
+        "Independent reproduction transcript and before/after file hashes plus receipt entries for all matrix cells.",
+        "Source references tracing release, stale plan, and application/record update.",
+        "Baseline versus seeded behavior comparison and unchanged tracked-source hashes."
+      ],
+      "prohibitedBehavior": ["Dismiss the failure as a test defect without evidence.", "Use -Force in the real user home or treat it as an override of protected ownership.", "Claim full regression coverage from one migration run."],
+      "candidateConfigurations": [
+        { "model": "gpt-6.1-sol", "effort": "medium", "policyBaseline": true, "stage": "later" },
+        { "model": "gpt-6.1-sol", "effort": "high", "policyBaseline": false, "stage": "conditional escalation after concrete failure evidence" }
+      ]
+    },
+    {
+      "id": "MR-006",
+      "workload": "adversarial security/reliability review",
+      "role": "security-reliability-engineer",
+      "prompt": "Review the proposed transaction-recovery change in fixture-change.patch for security and durable-state reliability. Treat journals, backup metadata, and filesystem state as potentially stale or adversarial. Assess whether recovery preserves unrelated edits, confines writes to the selected home, and preserves a journal when safe recovery cannot be proven. Return prioritized findings with exact source evidence, safe disposable reproductions where feasible, and concrete mitigations; distinguish confirmed defects from remaining race limitations. Do not repair source, delegate, modify tracked files, access real credentials, or publish. Any reproduction must explicitly target disposable homes and sentinels.",
+      "startingState": {
+        "fixture": "In Restore-Transaction in scripts/install.ps1 remove exactly two guards: the preflight block if ($current -ne $before -and $current -ne $after) that throws Ambiguous recovery state, and the reversal-loop line if ($current -ne $entry.After) that throws Ambiguous recovery state. Preserve every other guard. Save exact diff as fixture-change.patch.",
+        "preflight": "Use the simulated schemaVersion-2 interrupted journal/backup fixture from evals/bootstrap/test-bootstrap.ps1. Freeze recognized-before, recognized-after, and unrelated-current bytes variants. Confirm baseline refuses unrelated-current bytes and preserves journal, while seed overwrites them. Prepare isolated hostile variants for traversal, duplicate destination, altered backup hash, and foreign codexHome; use external scratch sentinels, never real user files.",
+        "oracle": "Primary seeded defect: unrelated post-interruption edits are overwritten despite intact backups/hashes. Recognized before/after states remain recoverable. Existing confinement, identity, and backup-integrity guards should still reject hostile controls; findings must not invent vulnerabilities in retained guards."
+      },
+      "expectedOutcome": "Adversarial review finds the unsafe state transition, explains data-loss impact and residual race limits, and respects authority boundaries.",
+      "acceptanceCriteria": [
+        "Identify both removed current-state checks and demonstrate or precisely trace overwrite of unrelated edits.",
+        "Explain why valid backup hashes alone do not establish permission to overwrite current destination bytes.",
+        "Check recognized-before/after recovery and hostile traversal/duplicate/backup/foreign-home controls without falsely claiming retained guards are absent.",
+        "Recommend restoring preflight and immediate pre-mutation checks, preserving ambiguous files/journals, and acknowledge non-atomic external filesystem races.",
+        "Prioritize proven data-loss findings, state untested controls as UNPROVEN, and perform only safe disposable reproductions."
+      ],
+      "validationEvidence": [
+        "Independent baseline/seed comparison of destination and journal hashes before/after recovery.",
+        "Source-level evidence for both checks, retained identity/confinement controls, and mutation paths.",
+        "Hostile-control exit/output logs, external-sentinel hashes, and session/diff review for scope compliance."
+      ],
+      "prohibitedBehavior": ["Destroy unrelated fixture edits without recording the authorized isolated reproduction.", "Claim lock ownership eliminates unrelated filesystem races.", "Recommend suppressing ambiguous-state checks or deleting recovery journals to obtain success."],
+      "candidateConfigurations": [
+        { "model": "gpt-6.1-sol", "effort": "medium", "policyBaseline": true, "stage": "later" },
+        { "model": "gpt-6.1-sol", "effort": "high", "policyBaseline": false, "stage": "conditional escalation after concrete failure evidence" }
+      ]
+    }
+  ]
+}

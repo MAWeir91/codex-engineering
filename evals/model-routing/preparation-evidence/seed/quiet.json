@@ -1,0 +1,14 @@
+{
+  "name": "quiet",
+  "executable": "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+  "arguments": [
+    "-NoProfile",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-Command",
+    "& '%TEMP%\\\\mr-pilot-prep-<redacted>\\implementation\\candidate\\scripts\\validate.ps1' -RepoRoot '%TEMP%\\\\mr-pilot-prep-<redacted>\\implementation\\candidate' -Quiet | ConvertTo-Json -Compress"
+  ],
+  "exitCode": 0,
+  "output": "{\"Status\":\"PASS\",\"ManagedFileCount\":12,\"WarningCount\":0}\r\n",
+  "version": "5.1.26100.9444"
+}

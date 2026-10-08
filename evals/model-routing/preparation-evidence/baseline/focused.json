@@ -1,0 +1,16 @@
+{
+  "name": "focused",
+  "executable": "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+  "arguments": [
+    "-NoProfile",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-File",
+    "%TEMP%\\\\mr-pilot-prep-<redacted>\\discovery\\candidate\\evals\\validate\\test-validator-root.ps1",
+    "-RepoRoot",
+    "%TEMP%\\\\mr-pilot-prep-<redacted>\\discovery\\candidate"
+  ],
+  "exitCode": 0,
+  "output": "PASS  Validator -File root resolution regression checks passed.\r\n",
+  "version": "5.1.26100.9444"
+}

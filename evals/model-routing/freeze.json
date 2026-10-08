@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "baseRevision": "356015018de0f835c0b6b52663d041f782d63ecd",
+  "package": [
+    {
+      "path": "README.md",
+      "sha256": "f9fca35818a92b7595bedf9aa73a1aca4fc53ef4b9555288d3c44250d69d5018"
+    },
+    {
+      "path": "cases.json",
+      "sha256": "9ce542b131bb13d9f08df29f18e5824933b6451327a2e2a398be3573de2073fc"
+    },
+    {
+      "path": "PILOT.md",
+      "sha256": "44cef8c23f28a2c247f8225e531d23ca3c0d928c02fc107b662608eb131b3be0"
+    },
+    {
+      "path": "prepare-pilot.ps1",
+      "sha256": "9cd9fef124cf814b071af8119b1ec53587290dca639c291f0b4bac38fefbc497"
+    },
+    {
+      "path": "verify-pilot.ps1",
+      "sha256": "8074668c01197b0c0ca2b4b6e8fcf3da8181f5dd5452d9e99f2a4a19dba32f9a"
+    },
+    {
+      "path": "probe-pilot.ps1",
+      "sha256": "88ea5866624ffec0f81ebe74c3d90bd193879490150c776fbbe9284a7fc2525a"
+    },
+    {
+      "path": "QA.md",
+      "sha256": "a5f7c98e7fc5ad98176870388fef3669a3f258da3d32c94946812b051f57ccc8"
+    }
+  ],
+  "fixtures": [
+    {
+      "case": "MR-001",
+      "fixture.json": "fa7ac18c9587dd87e854738ee48966096f484f4ae145d60e1b35d4e600bfca85",
+      "seed.patch": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "case": "MR-002",
+      "fixture.json": "8d39fc102ce480742e667529c87775db29cc9aaaa4312f98bb017b8772593198",
+      "seed.patch": "927f54dcdbcf6d9221d0e35ca4dd8e5933d11ee09efb5c66c05344353c81b07e"
+    }
+  ],
+  "preparationPowerShell": "7.6.5"
+}

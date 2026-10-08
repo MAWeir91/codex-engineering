@@ -1,0 +1,23 @@
+diff --git a/scripts/validate.ps1 b/scripts/validate.ps1
+index 60b074d..a240ea5 100644
+--- a/scripts/validate.ps1
++++ b/scripts/validate.ps1
+@@ -1,6 +1,6 @@
+ [CmdletBinding()]
+ param(
+-    [string]$RepoRoot = "",
++    [string]$RepoRoot = (Split-Path -Parent $PSScriptRoot),
+     [switch]$Quiet
+ )
+ 
+@@ -9,9 +9,7 @@ $ErrorActionPreference = "Stop"
+ 
+ # PowerShell 5.1 does not reliably populate $PSScriptRoot while evaluating
+ # parameter defaults for a script launched with -File.
+-if (-not $PSBoundParameters.ContainsKey("RepoRoot")) {
+-    $RepoRoot = Split-Path -Parent $PSScriptRoot
+-}
++
+ 
+ $script:Errors = @()
+ $script:Warnings = @()
