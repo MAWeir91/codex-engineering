@@ -10,6 +10,103 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+# Path checks cannot make PowerShell filesystem operations atomic against an
+# unrelated process replacing an ancestor between inspection and mutation.
+$script:installerOwnsLock = $false
+$script:journalHash = $null
+$installerMutex = $null
+
+function Get-InstallerLockKey {
+    param([string]$Path)
+    # Resolve the longest existing directory through an OS handle, including
+    # DOS short names and alternate drive mappings. Append missing components so
+    # creation of CodexHome does not change the lock identity mid-transaction.
+    if (-not ('CodexEngineering.NativePaths' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using System.Text;
+using Microsoft.Win32.SafeHandles;
+namespace CodexEngineering {
+    public static class NativePaths {
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        static extern SafeFileHandle CreateFile(string name, uint access, uint share,
+            IntPtr security, uint disposition, uint flags, IntPtr template);
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        static extern uint GetFinalPathNameByHandle(SafeFileHandle handle,
+            StringBuilder path, uint size, uint flags);
+        public static string CanonicalDirectory(string path) {
+            using (var handle = CreateFile(path, 0, 7, IntPtr.Zero, 3, 0x02000000, IntPtr.Zero)) {
+                if (handle.IsInvalid) throw new Win32Exception(Marshal.GetLastWin32Error());
+                var result = new StringBuilder(32768);
+                // Volume GUID identity does not depend on the drive mapping.
+                uint length = GetFinalPathNameByHandle(handle, result, (uint)result.Capacity, 1);
+                if (length == 0) throw new Win32Exception(Marshal.GetLastWin32Error());
+                if (length >= result.Capacity) throw new InvalidOperationException("Canonical path is too long.");
+                return result.ToString();
+            }
+        }
+    }
+}
+'@
+    }
+    $existing = $Path.TrimEnd('\', '/')
+    $suffix = @()
+    while (-not (Test-Path -LiteralPath $existing -PathType Container)) {
+        $suffix = @(Split-Path -Leaf $existing) + $suffix
+        $parent = Split-Path -Parent $existing
+        if (-not $parent -or $parent -eq $existing) { throw "Cannot establish installer lock identity for: $Path" }
+        $existing = $parent
+    }
+    $canonical = [CodexEngineering.NativePaths]::CanonicalDirectory($existing).TrimEnd('\', '/')
+    foreach ($part in $suffix) { $canonical += '\' + $part }
+    return $canonical.ToUpperInvariant()
+}
+
+function Assert-NoReparsePath {
+    param([string]$Path)
+    $full = [IO.Path]::GetFullPath($Path)
+    $root = [IO.Path]::GetPathRoot($full)
+    $current = $root
+    foreach ($part in $full.Substring($root.Length).Split([char[]]@('\', '/'), [StringSplitOptions]::RemoveEmptyEntries)) {
+        $current = Join-Path $current $part
+        $entry = $null
+        try { $entry = Get-Item -LiteralPath $current -Force -ErrorAction Stop }
+        catch [System.Management.Automation.ItemNotFoundException] { }
+        if ($null -ne $entry -and ($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "Unsupported reparse point in destination/backup path: $current"
+        }
+        if ($null -ne $entry -and $current -ne $full -and -not $entry.PSIsContainer) {
+            throw "Destination ancestor is not a directory: $current"
+        }
+    }
+}
+
+function Get-FileState {
+    param([string]$Path)
+    Assert-NoReparsePath -Path $Path
+    if (Test-Path -LiteralPath $Path -PathType Container) { throw "Expected file or absent path: $Path" }
+    if (Test-Path -LiteralPath $Path -PathType Leaf) { return Get-Sha256 -Path $Path }
+    return $null
+}
+
+function Assert-JournalIdentity {
+    param([string]$Path)
+    if (-not $script:installerOwnsLock) { throw "Installer does not own its lock." }
+    if ((Get-FileState -Path $Path) -ne $script:journalHash) {
+        throw "Transaction journal identity changed; preserving journal: $Path"
+    }
+}
+
+function Remove-OwnedJournal {
+    param([string]$Path)
+    Assert-JournalIdentity -Path $Path
+    if ($null -eq $script:journalHash) { throw "Expected transaction journal is missing: $Path" }
+    Remove-Item -LiteralPath $Path -Force
+    $script:journalHash = $null
+}
+
 function Get-FullPathSafe {
     param(
         [Parameter(Mandatory = $true)][string]$Root,
@@ -65,6 +162,7 @@ function Write-Utf8NoBom {
         [Parameter(Mandatory = $true)][string]$Content
     )
 
+    Assert-NoReparsePath -Path $Path
     $directory = Split-Path -Parent $Path
     if ($directory) {
         New-Item -ItemType Directory -Path $directory -Force | Out-Null
@@ -81,6 +179,7 @@ function Write-JsonAtomically {
         [int]$Depth = 10
     )
 
+    Assert-NoReparsePath -Path $Destination
     $directory = Split-Path -Parent $Destination
     New-Item -ItemType Directory -Path $directory -Force | Out-Null
 
@@ -88,6 +187,7 @@ function Write-JsonAtomically {
     try {
         $json = $Value | ConvertTo-Json -Depth $Depth
         Write-Utf8NoBom -Path $temp -Content $json
+        Assert-NoReparsePath -Path $Destination
         Move-Item -LiteralPath $temp -Destination $Destination -Force
     }
     finally {
@@ -103,12 +203,14 @@ function Write-FileAtomically {
         [Parameter(Mandatory = $true)][string]$Destination
     )
 
+    Assert-NoReparsePath -Path $Destination
     $directory = Split-Path -Parent $Destination
     New-Item -ItemType Directory -Path $directory -Force | Out-Null
 
     $temp = "$Destination.codex-engineering-$([guid]::NewGuid().ToString('N')).tmp"
     try {
         Copy-Item -LiteralPath $Source -Destination $temp -Force
+        Assert-NoReparsePath -Path $Destination
         Move-Item -LiteralPath $temp -Destination $Destination -Force
     }
     finally {
@@ -271,6 +373,8 @@ function Copy-ToTransactionBackup {
     )
 
     $backupPath = Get-FullPathSafe -Root $BackupRoot -RelativePath $BackupRelative
+    Assert-NoReparsePath -Path $ExistingPath
+    Assert-NoReparsePath -Path $backupPath
     $directory = Split-Path -Parent $backupPath
     New-Item -ItemType Directory -Path $directory -Force | Out-Null
     Copy-Item -LiteralPath $ExistingPath -Destination $backupPath -Force
@@ -283,68 +387,69 @@ function Restore-Transaction {
         [Parameter(Mandatory = $true)][string]$InstallRecordPath
     )
 
+    Assert-JournalIdentity -Path $JournalPath
     $journal = Read-JsonFile -Path $JournalPath
     if ($null -eq $journal) {
+        if ($null -ne $script:journalHash) { throw "Expected transaction journal is missing: $JournalPath" }
         return
     }
 
-    if ([int]$journal.schemaVersion -ne 1) {
-        throw "Unsupported transaction journal schema '$($journal.schemaVersion)'."
+    Assert-JournalIdentity -Path $JournalPath
+    if ([int]$journal.schemaVersion -ne 2) {
+        throw "Unsupported transaction journal schema '$($journal.schemaVersion)'; preserve it for manual recovery."
     }
-
-    $recordedHome = [System.IO.Path]::GetFullPath([string]$journal.codexHome)
-    if (-not $recordedHome.Equals(
-        [System.IO.Path]::GetFullPath($TargetHome),
-        [System.StringComparison]::OrdinalIgnoreCase
-    )) {
+    if ([string]::IsNullOrWhiteSpace([string]$journal.transactionId)) { throw "Transaction journal identity is missing." }
+    $recordedHome = [IO.Path]::GetFullPath([string]$journal.codexHome)
+    if (-not $recordedHome.Equals($TargetHome, [StringComparison]::OrdinalIgnoreCase)) {
         throw "Transaction journal belongs to a different Codex home: $recordedHome"
     }
-
     $backupBase = Get-BackupBase -TargetHome $TargetHome
     $backupRoot = Get-FullPathSafe -Root $backupBase -RelativePath ([string]$journal.backupSet)
+    Assert-NoReparsePath -Path $backupRoot
+    if (-not (Test-Path -LiteralPath $backupRoot -PathType Container)) { throw "Transaction recovery backup is missing: $backupRoot" }
 
-    if (-not (Test-Path -LiteralPath $backupRoot -PathType Container)) {
-        throw "Transaction recovery backup is missing: $backupRoot"
-    }
-
-    foreach ($operation in @($journal.operations)) {
-        $destinationRelative = [string]$operation.destination
-        $destination = Get-FullPathSafe -Root $TargetHome -RelativePath $destinationRelative
-        $existedBefore = [bool]$operation.existedBefore
-
-        if ($existedBefore) {
-            $backupRelative = [string]$operation.backupRelative
-            if ([string]::IsNullOrWhiteSpace($backupRelative)) {
-                throw "Transaction backup metadata is missing for '$destinationRelative'."
-            }
-
-            $backupPath = Get-FullPathSafe -Root $backupRoot -RelativePath $backupRelative
-            if (-not (Test-Path -LiteralPath $backupPath -PathType Leaf)) {
-                throw "Transaction backup file is missing: $backupPath"
-            }
-
-            Write-FileAtomically -Source $backupPath -Destination $destination
+    # Preflight all states before reversing any file. Before states also recognize
+    # operations never applied or already reversed by an interrupted recovery.
+    $reversals = @()
+    $destinations = @{}
+    foreach ($operation in @($journal.operations) + @($journal.installRecord)) {
+        $relative = [string]$operation.destination
+        $destination = Get-FullPathSafe -Root $TargetHome -RelativePath $relative
+        $key = $destination.ToLowerInvariant()
+        if ($destinations.ContainsKey($key) -or $destination -eq $JournalPath) { throw "Invalid duplicate/journal recovery destination: $relative" }
+        $destinations[$key] = $true
+        $before = $operation.beforeHash
+        $after = $operation.afterHash
+        foreach ($hash in @($before, $after)) {
+            if ($null -ne $hash -and [string]$hash -notmatch '^[a-f0-9]{64}$') { throw "Invalid transaction state hash for '$relative'." }
         }
-        elseif (Test-Path -LiteralPath $destination -PathType Leaf) {
-            Remove-Item -LiteralPath $destination -Force
+        if ([bool]$operation.existedBefore -ne ($null -ne $before)) { throw "Inconsistent before state for '$relative'." }
+        $backupPath = $null
+        if ($null -ne $before) {
+            $backupPath = Get-FullPathSafe -Root $backupRoot -RelativePath ([string]$operation.backupRelative)
+            if ((Get-FileState -Path $backupPath) -ne $before) { throw "Transaction backup is missing or changed for '$relative'." }
+        }
+        $current = Get-FileState -Path $destination
+        if ($current -ne $before -and $current -ne $after) {
+            throw "Ambiguous recovery state for '$relative': file changed after interruption; preserving file and journal."
+        }
+        $reversals += [pscustomobject]@{ Path = $destination; Before = $before; After = $after; Backup = $backupPath }
+    }
+    if ([string]$journal.installRecord.destination -ne (Get-RelativePathCompat -BasePath $TargetHome -TargetPath $InstallRecordPath).Replace('\', '/')) {
+        throw "Transaction install-record destination is inconsistent."
+    }
+    foreach ($entry in $reversals) {
+        Assert-JournalIdentity -Path $JournalPath
+        $current = Get-FileState -Path $entry.Path
+        if ($current -eq $entry.Before) { continue }
+        if ($current -ne $entry.After) { throw "Ambiguous recovery state for '$($entry.Path)'; preserving file and journal." }
+        if ($null -ne $entry.Before) { Write-FileAtomically -Source $entry.Backup -Destination $entry.Path }
+        else {
+            Assert-NoReparsePath -Path $entry.Path
+            Remove-Item -LiteralPath $entry.Path -Force
         }
     }
-
-    if ([bool]$journal.installRecord.existedBefore) {
-        $recordBackupRelative = [string]$journal.installRecord.backupRelative
-        $recordBackup = Get-FullPathSafe -Root $backupRoot -RelativePath $recordBackupRelative
-
-        if (-not (Test-Path -LiteralPath $recordBackup -PathType Leaf)) {
-            throw "Transaction install-record backup is missing: $recordBackup"
-        }
-
-        Write-FileAtomically -Source $recordBackup -Destination $InstallRecordPath
-    }
-    elseif (Test-Path -LiteralPath $InstallRecordPath -PathType Leaf) {
-        Remove-Item -LiteralPath $InstallRecordPath -Force
-    }
-
-    Remove-Item -LiteralPath $JournalPath -Force
+    Remove-OwnedJournal -Path $JournalPath
     Write-Host "RECOVERED unfinished Codex Engineering transaction." -ForegroundColor Yellow
 }
 
@@ -381,7 +486,7 @@ function New-InstallRecord {
         $files += [ordered]@{
             source = $item.SourceRelative
             destination = $item.DestinationRelative
-            sha256 = Get-Sha256 -Path $item.Destination
+            sha256 = $item.SourceHash
         }
     }
 
@@ -399,6 +504,16 @@ function New-InstallRecord {
 try {
     $RepoRoot = [System.IO.Path]::GetFullPath($RepoRoot)
     $CodexHome = [System.IO.Path]::GetFullPath($CodexHome)
+    Assert-NoReparsePath -Path $CodexHome
+    Assert-NoReparsePath -Path (Get-BackupBase -TargetHome $CodexHome)
+    $lockKey = Get-InstallerLockKey -Path $CodexHome
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { $lockHash = [BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($lockKey))).Replace('-', '') }
+    finally { $sha.Dispose() }
+    $installerMutex = New-Object Threading.Mutex($false, "Global\CodexEngineeringInstaller-$lockHash")
+    try { $script:installerOwnsLock = $installerMutex.WaitOne(0) }
+    catch [Threading.AbandonedMutexException] { $script:installerOwnsLock = $true }
+    if (-not $script:installerOwnsLock) { throw "Another installer owns this Codex home; no state was changed: $CodexHome" }
     $manifestPath = Join-Path $RepoRoot "manifest.json"
 
     if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
@@ -413,7 +528,9 @@ try {
     $installRecordPath = Get-FullPathSafe -Root $CodexHome -RelativePath ([string]$manifest.installRecord)
     $transactionPath = Get-FullPathSafe -Root $CodexHome -RelativePath ([string]$manifest.transactionRecord)
 
-    if (Test-Path -LiteralPath $transactionPath -PathType Leaf) {
+    Assert-NoReparsePath -Path $installRecordPath
+    $script:journalHash = Get-FileState -Path $transactionPath
+    if ($null -ne $script:journalHash) {
         if ($DryRun) {
             throw "An unfinished transaction requires recovery. Run install.ps1 without -DryRun first."
         }
@@ -436,6 +553,7 @@ try {
     $previousFiles = New-HashMapFromRecord -Record $previousRecord
     $plan = @(Get-DeploymentPlan -Root $RepoRoot -TargetHome $CodexHome -Manifest $manifest)
 
+    foreach ($item in $plan) { $null = Get-FileState -Path $item.Destination }
     $newDestinations = @{}
     foreach ($item in $plan) {
         $newDestinations[$item.DestinationRelative.ToLowerInvariant()] = $true
@@ -472,6 +590,7 @@ try {
 
         $relative = $entry.Value.Destination
         $path = Get-FullPathSafe -Root $CodexHome -RelativePath $relative
+        $null = Get-FileState -Path $path
         $isNowProtected = Test-ProtectedDestination `
             -Destination $relative `
             -Protected $manifest.protectedDestinations
@@ -551,18 +670,11 @@ try {
         return
     }
 
+    Assert-NoReparsePath -Path $CodexHome
     New-Item -ItemType Directory -Path $CodexHome -Force | Out-Null
 
     foreach ($item in $released) {
         Write-Host "RELEASED $($item.DestinationRelative) (preserved; no longer managed)" -ForegroundColor Yellow
-    }
-
-    if ($toWrite.Count -eq 0 -and $toRemove.Count -eq 0) {
-        $record = New-InstallRecord -Plan $plan -Root $RepoRoot -ManifestPath $manifestPath
-        Write-JsonAtomically -Value $record -Destination $installRecordPath
-        Write-Host "PASS  Codex Engineering installed successfully." -ForegroundColor Green
-        Write-Host "      Install record: $installRecordPath"
-        return
     }
 
     $transactionId = [guid]::NewGuid().ToString("N")
@@ -570,6 +682,7 @@ try {
     $backupSet = "$stamp-$($transactionId.Substring(0,8))"
     $backupBase = Get-BackupBase -TargetHome $CodexHome
     $backupRoot = Get-FullPathSafe -Root $backupBase -RelativePath $backupSet
+    Assert-NoReparsePath -Path $backupRoot
     New-Item -ItemType Directory -Path $backupRoot -Force | Out-Null
 
     $operations = @()
@@ -595,6 +708,8 @@ try {
 
         $operations += [ordered]@{
             destination = $item.DestinationRelative
+            beforeHash = Get-FileState -Path $item.Destination
+            afterHash = if ($item.PSObject.Properties.Name -contains "SourceHash") { $item.SourceHash } else { $null }
             existedBefore = [bool]$exists
             backupRelative = $backupRelative
         }
@@ -610,35 +725,65 @@ try {
             -BackupRelative $recordBackupRelative
     }
 
+    $record = New-InstallRecord -Plan $plan -Root $RepoRoot -ManifestPath $manifestPath
+    $preparedRecord = Join-Path $backupRoot "after-install-record.json"
+    Write-Utf8NoBom -Path $preparedRecord -Content ($record | ConvertTo-Json -Depth 10)
+
     $journal = [ordered]@{
-        schemaVersion = 1
+        schemaVersion = 2
         transactionId = $transactionId
         createdAtUtc = (Get-Date).ToUniversalTime().ToString("o")
         codexHome = $CodexHome
         backupSet = $backupSet
         operations = $operations
         installRecord = [ordered]@{
+            destination = ([string]$manifest.installRecord).Replace('\', '/')
+            beforeHash = Get-FileState -Path $installRecordPath
+            afterHash = Get-Sha256 -Path $preparedRecord
             existedBefore = [bool]$recordExistedBefore
             backupRelative = $recordBackupRelative
         }
     }
 
+    Assert-JournalIdentity -Path $transactionPath
     Write-JsonAtomically -Value $journal -Destination $transactionPath
+    $script:journalHash = Get-Sha256 -Path $transactionPath
 
     try {
+        foreach ($operation in $operations) {
+            $path = Get-FullPathSafe -Root $CodexHome -RelativePath $operation.destination
+            if ((Get-FileState -Path $path) -ne $operation.beforeHash) {
+                throw "Destination changed during planning: $($operation.destination)"
+            }
+        }
         foreach ($item in $toRemove) {
+            Assert-JournalIdentity -Path $transactionPath
+            Assert-NoReparsePath -Path $item.Destination
             Remove-Item -LiteralPath $item.Destination -Force
             Write-Host "REMOVED $($item.DestinationRelative)"
         }
 
         foreach ($item in $toWrite) {
+            Assert-JournalIdentity -Path $transactionPath
             Write-FileAtomically -Source $item.Source -Destination $item.Destination
             Write-Host "WROTE   $($item.DestinationRelative)"
         }
 
-        $record = New-InstallRecord -Plan $plan -Root $RepoRoot -ManifestPath $manifestPath
-        Write-JsonAtomically -Value $record -Destination $installRecordPath
-        Remove-Item -LiteralPath $transactionPath -Force
+        foreach ($operation in $operations) {
+            $path = Get-FullPathSafe -Root $CodexHome -RelativePath $operation.destination
+            if ((Get-FileState -Path $path) -ne $operation.afterHash) {
+                throw "Destination does not match transaction after state: $($operation.destination)"
+            }
+        }
+        Assert-JournalIdentity -Path $transactionPath
+        if ((Get-FileState -Path $installRecordPath) -ne $journal.installRecord.beforeHash) {
+            throw "Install record changed during transaction."
+        }
+        Write-FileAtomically -Source $preparedRecord -Destination $installRecordPath
+        if ((Get-FileState -Path $installRecordPath) -ne $journal.installRecord.afterHash) {
+            throw "Install record does not match transaction after state; preserving recovery journal."
+        }
+        Remove-OwnedJournal -Path $transactionPath
 
         Write-Host ""
         Write-Host "PASS  Codex Engineering installed successfully." -ForegroundColor Green
@@ -671,4 +816,10 @@ catch {
     Write-Host ""
     Write-Host "FAIL  $($_.Exception.Message)" -ForegroundColor Red
     throw
+}
+
+finally {
+    if ($script:installerOwnsLock) { $installerMutex.ReleaseMutex() }
+    if ($null -ne $installerMutex) { $installerMutex.Dispose() }
+    $script:installerOwnsLock = $false
 }
