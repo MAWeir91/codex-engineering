@@ -4,8 +4,7 @@
 # Machine/user settings (authentication, providers, notifications, telemetry,
 # desktop-local state, and other personal defaults) belong in ~/.codex/config.toml.
 
-model = "gpt-6.1-sol"
-model_reasoning_effort = "medium"
+# Model and reasoning effort are selected by the user or evaluation runner.
 
 approval_policy = "on-request"
 sandbox_mode = "workspace-write"
