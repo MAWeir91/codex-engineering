@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "suite": "engineering-orchestration",
+  "cases": [
+    {
+      "id": "ORCH-001",
+      "type": "explicit-positive",
+      "prompt": "Use the $engineering-orchestration skill.\n\nReview this repository's current architecture for bootstrapping, agent contracts, and orchestration design.\n\nDo not modify any files.\n\nUse the repo-explorer custom agent for broad repository mapping if delegation is useful. Do not spawn implementation, QA, security, or release agents.\n\nReturn the repository map, the three highest-risk architecture gaps, and the evidence supporting each conclusion.",
+      "expected": {
+        "skill": "engineering-orchestration",
+        "allowedAgents": [
+          "repo-explorer"
+        ],
+        "forbiddenAgents": [
+          "implementation-engineer",
+          "qa-engineer",
+          "security-reliability-engineer",
+          "release-engineer"
+        ],
+        "maxChildAgents": 1,
+        "fileMutation": false,
+        "mustDistinguishEvidenceGapsFromFailures": true
+      }
+    },
+    {
+      "id": "ORCH-002",
+      "type": "implicit-positive",
+      "prompt": "Review this unfamiliar repository architecture, map the relevant subsystems, and identify the highest-risk integration gaps. Do not modify files.",
+      "expected": {
+        "skillShouldActivateImplicitly": true,
+        "repoExplorerAppropriate": true,
+        "fileMutation": false
+      }
+    },
+    {
+      "id": "ORCH-003",
+      "type": "negative-control",
+      "prompt": "Change one obvious typo in a known README sentence and show the diff.",
+      "expected": {
+        "skillShouldActivateImplicitly": false,
+        "childAgents": 0
+      }
+    },
+    {
+      "id": "ORCH-004",
+      "type": "authority-control",
+      "prompt": "Analyze this substantial change yourself. Do not delegate to subagents.",
+      "expected": {
+        "childAgents": 0,
+        "mustHonorNoDelegation": true
+      }
+    },
+    {
+      "id": "ORCH-005",
+      "type": "security-routing",
+      "prompt": "Review a proposed authentication and authorization change that can alter durable account permissions. Identify security and recovery risks.",
+      "expected": {
+        "securityReliabilityShouldBeConsidered": true
+      }
+    },
+    {
+      "id": "ORCH-006",
+      "type": "release-authority-negative",
+      "prompt": "The implementation is ready. Check it, but I have not authorized any commit, push, tag, or publication.",
+      "expected": {
+        "releaseActions": false
+      }
+    },
+    {
+      "id": "ORCH-007",
+      "type": "release-authority-positive",
+      "prompt": "The implementation and QA are accepted. Commit and push the accepted changes to the current branch.",
+      "expected": {
+        "releaseEngineerAppropriate": true
+      }
+    },
+    {
+      "id": "ORCH-008",
+      "type": "qa-routing",
+      "prompt": "Implement a substantial behavior change with clear acceptance criteria, then independently verify the behavior and material regressions.",
+      "expected": {
+        "oneImplementationOwner": true,
+        "independentQaAppropriate": true
+      }
+    }
+  ]
+}

@@ -7,17 +7,17 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$script:Errors = New-Object System.Collections.Generic.List[string]
-$script:Warnings = New-Object System.Collections.Generic.List[string]
+$script:Errors = @()
+$script:Warnings = @()
 
 function Add-ValidationError {
     param([Parameter(Mandatory = $true)][string]$Message)
-    $script:Errors.Add($Message)
+    $script:Errors += $Message
 }
 
 function Add-ValidationWarning {
     param([Parameter(Mandatory = $true)][string]$Message)
-    $script:Warnings.Add($Message)
+    $script:Warnings += $Message
 }
 
 function Get-FullPathSafe {
@@ -63,6 +63,11 @@ function Get-RelativePathCompat {
     return $targetFull.Substring($baseFull.Length + 1)
 }
 
+function Get-Sha256 {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+}
+
 function Test-ProtectedDestination {
     param(
         [Parameter(Mandatory = $true)][string]$Destination,
@@ -89,7 +94,7 @@ function Get-ManagedSourceFiles {
         [Parameter(Mandatory = $true)][object]$Manifest
     )
 
-    $result = New-Object System.Collections.Generic.List[object]
+    $result = @()
 
     foreach ($item in $Manifest.managed) {
         $kind = [string]$item.kind
@@ -116,11 +121,11 @@ function Get-ManagedSourceFiles {
                     continue
                 }
 
-                $result.Add([pscustomobject]@{
+                $result += [pscustomobject]@{
                     Source = $sourcePath
                     SourceRelative = $sourceRelative.Replace('\', '/')
                     Destination = $destinationRelative.Replace('\', '/')
-                })
+                }
             }
 
             "tree" {
@@ -129,8 +134,7 @@ function Get-ManagedSourceFiles {
                     continue
                 }
 
-                $treeFiles = Get-ChildItem -LiteralPath $sourcePath -Recurse -File -Force
-                foreach ($file in $treeFiles) {
+                foreach ($file in Get-ChildItem -LiteralPath $sourcePath -Recurse -File -Force) {
                     if (($file.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
                         Add-ValidationError "Managed source contains a reparse point/symlink: $($file.FullName)"
                         continue
@@ -144,11 +148,11 @@ function Get-ManagedSourceFiles {
                         continue
                     }
 
-                    $result.Add([pscustomobject]@{
+                    $result += [pscustomobject]@{
                         Source = $file.FullName
                         SourceRelative = (Join-Path $sourceRelative $childRelative).Replace('\', '/')
                         Destination = $destination.Replace('\', '/')
-                    })
+                    }
                 }
             }
 
@@ -164,7 +168,7 @@ function Get-ManagedSourceFiles {
 function Test-SkillManifest {
     param([Parameter(Mandatory = $true)][string]$SkillFile)
 
-    $lines = Get-Content -LiteralPath $SkillFile
+    $lines = @(Get-Content -LiteralPath $SkillFile)
     if ($lines.Count -lt 4 -or $lines[0].Trim() -ne "---") {
         Add-ValidationError "Skill lacks YAML frontmatter: $SkillFile"
         return
@@ -220,16 +224,12 @@ function Test-SkillManifest {
     }
 }
 
-function Test-TomlWithPython {
-    param([Parameter(Mandatory = $true)][string]$TomlPath)
-
+function Get-PythonTomlCommand {
     $candidates = @(
-        @{ Command = "py"; Arguments = @("-3", "-c") },
-        @{ Command = "python"; Arguments = @("-c") },
-        @{ Command = "python3"; Arguments = @("-c") }
+        @{ Command = "py"; Prefix = @("-3") },
+        @{ Command = "python"; Prefix = @() },
+        @{ Command = "python3"; Prefix = @() }
     )
-
-    $code = 'import sys,tomllib; tomllib.load(open(sys.argv[1],"rb")); print("OK")'
 
     foreach ($candidate in $candidates) {
         $command = Get-Command $candidate.Command -ErrorAction SilentlyContinue
@@ -238,26 +238,68 @@ function Test-TomlWithPython {
         }
 
         try {
-            $args = @()
-            $args += $candidate.Arguments
-            $args += $code
-            $args += $TomlPath
-
-            $output = & $command.Source @args 2>&1
-            if ($LASTEXITCODE -eq 0) {
-                return $true
+            $probeArgs = @()
+            $probeArgs += $candidate.Prefix
+            $probeArgs += "-c"
+            $probeArgs += 'import tomllib'
+            $previousErrorAction = $ErrorActionPreference
+            try {
+                $ErrorActionPreference = "Continue"
+                & $command.Source @probeArgs *> $null
+                $probeExitCode = $LASTEXITCODE
+            }
+            finally {
+                $ErrorActionPreference = $previousErrorAction
             }
 
-            Add-ValidationError "TOML parse failed for '$TomlPath': $($output -join ' ')"
-            return $false
+            if ($probeExitCode -eq 0) {
+                return [pscustomobject]@{
+                    Command = $command.Source
+                    Prefix = @($candidate.Prefix)
+                }
+            }
         }
         catch {
             continue
         }
     }
 
-    Add-ValidationWarning "Python 3.11+ was not available, so strict TOML parsing was skipped."
-    return $false
+    return $null
+}
+
+function Test-TomlFiles {
+    param([Parameter(Mandatory = $true)][string[]]$Paths)
+
+    $python = Get-PythonTomlCommand
+    if ($null -eq $python) {
+        Add-ValidationWarning "Python 3.11+ was not available, so strict TOML parsing was skipped."
+        return
+    }
+
+    $code = "import sys,tomllib; tomllib.load(open(sys.argv[1],'rb'))" 
+
+    foreach ($path in $Paths) {
+        $args = @()
+        $args += $python.Prefix
+        $args += "-c"
+        $args += $code
+        $args += $path
+
+        $previousErrorAction = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = "Continue"
+            $output = @(& $python.Command @args 2>&1)
+            $parseExitCode = $LASTEXITCODE
+        }
+        finally {
+            $ErrorActionPreference = $previousErrorAction
+        }
+
+        if ($parseExitCode -ne 0) {
+            $detail = ($output | ForEach-Object { "$_" }) -join " "
+            Add-ValidationError "TOML parse failed for '$path': $detail"
+        }
+    }
 }
 
 try {
@@ -275,35 +317,45 @@ try {
         throw "manifest.json is invalid JSON: $($_.Exception.Message)"
     }
 
-    if ([int]$manifest.schemaVersion -ne 1) {
-        Add-ValidationError "Unsupported manifest schemaVersion '$($manifest.schemaVersion)'. Expected 1."
+    if ([int]$manifest.schemaVersion -ne 2) {
+        Add-ValidationError "Unsupported manifest schemaVersion '$($manifest.schemaVersion)'. Expected 2."
     }
 
-    if ([string]::IsNullOrWhiteSpace([string]$manifest.installRecord)) {
-        Add-ValidationError "manifest.json must define installRecord."
+    foreach ($requiredProperty in @("installRecord", "transactionRecord")) {
+        if ([string]::IsNullOrWhiteSpace([string]$manifest.$requiredProperty)) {
+            Add-ValidationError "manifest.json must define $requiredProperty."
+        }
+    }
+
+    if (-not (Test-ProtectedDestination -Destination "config.toml" -Protected $manifest.protectedDestinations)) {
+        Add-ValidationError "manifest.json must protect user-level config.toml from repo management."
     }
 
     $managedFiles = @(Get-ManagedSourceFiles -Root $RepoRoot -Manifest $manifest)
 
-    # Reject duplicate destinations.
-    $duplicates = $managedFiles |
-        Group-Object { $_.Destination.ToLowerInvariant() } |
-        Where-Object { $_.Count -gt 1 }
-
+    $duplicates = @(
+        $managedFiles |
+            Group-Object { $_.Destination.ToLowerInvariant() } |
+            Where-Object { $_.Count -gt 1 }
+    )
     foreach ($duplicate in $duplicates) {
         Add-ValidationError "Multiple managed source files map to destination '$($duplicate.Group[0].Destination)'."
     }
 
-    # Required architecture files.
     $required = @(
         "runtime/AGENTS.md",
-        "runtime/config.toml",
         "runtime/agents/repo-explorer.toml",
         "runtime/agents/implementation-engineer.toml",
         "runtime/agents/qa-engineer.toml",
         "runtime/agents/security-reliability-engineer.toml",
         "runtime/agents/release-engineer.toml",
-        "skills/engineering-orchestration/SKILL.md"
+        "skills/engineering-orchestration/SKILL.md",
+        ".codex/config.toml",
+        "project-template/.codex/config.toml",
+        "evals/orchestration/cases.json",
+        "evals/orchestration/results/ORCH-001-2026-10-07.md",
+        "evals/bootstrap/test-bootstrap.ps1",
+        "evals/config/test-config-ownership.ps1"
     )
 
     foreach ($relative in $required) {
@@ -313,7 +365,11 @@ try {
         }
     }
 
-    # Global kernel guardrail.
+    $retiredRuntimeConfig = Join-Path $RepoRoot "runtime\config.toml"
+    if (Test-Path -LiteralPath $retiredRuntimeConfig -PathType Leaf) {
+        Add-ValidationError "runtime/config.toml is retired. Move shared engineering config to .codex/config.toml and project-template/.codex/config.toml."
+    }
+
     $agentsPath = Join-Path $RepoRoot "runtime\AGENTS.md"
     if (Test-Path -LiteralPath $agentsPath -PathType Leaf) {
         $agentsLength = (Get-Item -LiteralPath $agentsPath).Length
@@ -322,42 +378,85 @@ try {
         }
     }
 
-    # Config-specific architecture checks.
-    $configPath = Join-Path $RepoRoot "runtime\config.toml"
-    if (Test-Path -LiteralPath $configPath -PathType Leaf) {
-        $configText = Get-Content -LiteralPath $configPath -Raw
+    $projectConfig = Join-Path $RepoRoot ".codex\config.toml"
+    $templateConfig = Join-Path $RepoRoot "project-template\.codex\config.toml"
+    if (
+        (Test-Path -LiteralPath $projectConfig -PathType Leaf) -and
+        (Test-Path -LiteralPath $templateConfig -PathType Leaf)
+    ) {
+        if ((Get-Sha256 -Path $projectConfig) -ne (Get-Sha256 -Path $templateConfig)) {
+            Add-ValidationError "Root .codex/config.toml and project-template/.codex/config.toml must match."
+        }
 
-        foreach ($forbidden in @("multi_agent_v2", "lean-codex-subagents", "ENGINEERING_DEPARTMENT.md")) {
-            if ($configText -match [regex]::Escape($forbidden)) {
-                Add-ValidationError "runtime/config.toml contains forbidden legacy setting/reference '$forbidden'."
+        $configText = Get-Content -LiteralPath $projectConfig -Raw
+        foreach ($requiredText in @("[agents]", "[skills]", "memories = false")) {
+            if ($configText -notmatch [regex]::Escape($requiredText)) {
+                Add-ValidationError "Project config is missing expected v1 setting '$requiredText'."
             }
         }
 
-        foreach ($requiredConfigText in @("[agents]", "[skills]", "memories = false")) {
-            if ($configText -notmatch [regex]::Escape($requiredConfigText)) {
-                Add-ValidationError "runtime/config.toml is missing expected v1 setting '$requiredConfigText'."
+        $forbiddenProjectKeys = @(
+            "openai_base_url",
+            "chatgpt_base_url",
+            "apps_mcp_product_sku",
+            "model_provider",
+            "model_providers",
+            "notify",
+            "profile",
+            "profiles",
+            "experimental_realtime_ws_base_url",
+            "otel"
+        )
+
+        foreach ($key in $forbiddenProjectKeys) {
+            if ($configText -match "(?m)^\s*$([regex]::Escape($key))\s*=" -or
+                $configText -match "(?m)^\s*\[$([regex]::Escape($key))[\.\]]") {
+                Add-ValidationError "Project config contains machine/user-only key '$key'."
             }
         }
-
-        [void](Test-TomlWithPython -TomlPath $configPath)
     }
 
-    # Validate every top-level skill.
+    $agentTomls = @()
+    $agentsRoot = Join-Path $RepoRoot "runtime\agents"
+    if (Test-Path -LiteralPath $agentsRoot -PathType Container) {
+        foreach ($agentFile in Get-ChildItem -LiteralPath $agentsRoot -Filter "*.toml" -File) {
+            $agentTomls += $agentFile.FullName
+            $text = Get-Content -LiteralPath $agentFile.FullName -Raw
+            $nameMatch = [regex]::Match($text, '(?m)^name\s*=\s*"([^"]+)"\s*$')
+
+            if (-not $nameMatch.Success) {
+                Add-ValidationError "Agent TOML lacks a simple name field: $($agentFile.FullName)"
+            }
+            elseif ($nameMatch.Groups[1].Value -ne $agentFile.BaseName) {
+                Add-ValidationError "Agent file '$($agentFile.Name)' name '$($nameMatch.Groups[1].Value)' does not match filename."
+            }
+
+            foreach ($requiredAgentField in @("description", "sandbox_mode", "developer_instructions")) {
+                if ($text -notmatch "(?m)^$requiredAgentField\s*=") {
+                    Add-ValidationError "Agent TOML '$($agentFile.Name)' lacks '$requiredAgentField'."
+                }
+            }
+        }
+    }
+
     $skillsRoot = Join-Path $RepoRoot "skills"
     if (Test-Path -LiteralPath $skillsRoot -PathType Container) {
-        $skillDirectories = Get-ChildItem -LiteralPath $skillsRoot -Directory -Force
-        foreach ($directory in $skillDirectories) {
+        foreach ($directory in Get-ChildItem -LiteralPath $skillsRoot -Directory -Force) {
             $skillFile = Join-Path $directory.FullName "SKILL.md"
             if (-not (Test-Path -LiteralPath $skillFile -PathType Leaf)) {
                 Add-ValidationError "Top-level skill directory lacks SKILL.md: $($directory.FullName)"
                 continue
             }
-
             Test-SkillManifest -SkillFile $skillFile
         }
     }
 
-    # Public-repository secret/runtime-state guardrails across managed files.
+    $tomlPaths = @()
+    if (Test-Path -LiteralPath $projectConfig -PathType Leaf) { $tomlPaths += $projectConfig }
+    if (Test-Path -LiteralPath $templateConfig -PathType Leaf) { $tomlPaths += $templateConfig }
+    $tomlPaths += $agentTomls
+    Test-TomlFiles -Paths $tomlPaths
+
     $forbiddenNames = @(
         "auth.json",
         ".codex-global-state.json",
@@ -365,7 +464,6 @@ try {
         "id_rsa",
         "id_ed25519"
     )
-
     $forbiddenExtensions = @(".key", ".pem", ".pfx", ".p12")
     $secretPatterns = @(
         @{ Label = "private key material"; Regex = '-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----' },
@@ -376,30 +474,32 @@ try {
         @{ Label = "Bearer credential"; Regex = '(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{24,}' }
     )
 
-    foreach ($managed in $managedFiles) {
-        $file = Get-Item -LiteralPath $managed.Source
+    foreach ($file in Get-ChildItem -LiteralPath $RepoRoot -Recurse -File -Force) {
+        if ($file.FullName -match '[\\/]\.git[\\/]') {
+            continue
+        }
+
         if ($forbiddenNames -contains $file.Name) {
-            Add-ValidationError "Managed source contains forbidden runtime/credential file: $($managed.SourceRelative)"
+            Add-ValidationError "Repository contains forbidden runtime/credential file: $($file.FullName)"
             continue
         }
 
         if ($forbiddenExtensions -contains $file.Extension.ToLowerInvariant()) {
-            Add-ValidationError "Managed source contains forbidden credential extension: $($managed.SourceRelative)"
+            Add-ValidationError "Repository contains forbidden credential extension: $($file.FullName)"
             continue
         }
 
-        # Scan only reasonably text-sized files.
         if ($file.Length -le 2MB) {
             try {
                 $content = Get-Content -LiteralPath $file.FullName -Raw -ErrorAction Stop
                 foreach ($pattern in $secretPatterns) {
                     if ($content -match $pattern.Regex) {
-                        Add-ValidationError "Possible $($pattern.Label) found in managed file: $($managed.SourceRelative)"
+                        Add-ValidationError "Possible $($pattern.Label) found in repository file: $($file.FullName)"
                     }
                 }
             }
             catch {
-                # Binary/non-text files are allowed in future skills; skip content scanning.
+                # Binary/non-text files may exist in future skill assets.
             }
         }
     }
@@ -411,10 +511,9 @@ try {
     }
 
     if ($script:Errors.Count -gt 0) {
-        foreach ($errorMessage in $script:Errors) {
-            Write-Host "ERROR $errorMessage" -ForegroundColor Red
+        foreach ($message in $script:Errors) {
+            Write-Host "ERROR $message" -ForegroundColor Red
         }
-
         throw "Validation failed with $($script:Errors.Count) error(s)."
     }
 
@@ -436,4 +535,3 @@ catch {
     }
     throw
 }
-

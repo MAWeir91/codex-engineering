@@ -1,0 +1,38 @@
+#:schema https://developers.openai.com/codex/config-schema.json
+
+# Shared engineering defaults for trusted projects.
+# Machine/user settings (authentication, providers, notifications, telemetry,
+# desktop-local state, and other personal defaults) belong in ~/.codex/config.toml.
+
+model = "gpt-6.1-sol"
+model_reasoning_effort = "medium"
+
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+web_search = "cached"
+
+project_doc_max_bytes = 16384
+project_doc_fallback_filenames = []
+
+[agents]
+enabled = true
+max_concurrent_threads_per_session = 3
+interrupt_message = true
+
+# Model/effort routing for bounded workers is selected by the Engineering
+# Director using the engineering-orchestration skill rather than pinned here.
+
+[features]
+multi_agent = true
+memories = false
+
+[memories]
+generate_memories = false
+use_memories = false
+
+[skills]
+max_context_tokens = 3000
+
+[sandbox_workspace_write]
+writable_roots = []
+network_access = false

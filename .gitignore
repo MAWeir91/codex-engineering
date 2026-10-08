@@ -8,8 +8,8 @@
 secrets/
 credentials/
 
-# Codex runtime state
-.codex/
+# Codex user runtime state lives under ~/.codex, outside this repository.
+# Repository-local .codex/config.toml is intentionally version-controlled.
 .codex-backup-*/
 auth.json
 

@@ -1,16 +1,12 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "name": "codex-engineering",
   "installRecord": ".codex-engineering-install.json",
+  "transactionRecord": ".codex-engineering-transaction.json",
   "managed": [
     {
       "source": "runtime/AGENTS.md",
       "destination": "AGENTS.md",
-      "kind": "file"
-    },
-    {
-      "source": "runtime/config.toml",
-      "destination": "config.toml",
       "kind": "file"
     },
     {
@@ -25,6 +21,9 @@
     }
   ],
   "protectedDestinations": [
+    "config.toml",
+    ".codex-engineering-install.json",
+    ".codex-engineering-transaction.json",
     "auth.json",
     ".codex-global-state.json",
     ".sandbox",

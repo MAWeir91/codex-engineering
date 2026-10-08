@@ -27,7 +27,7 @@ Do not spawn every role merely because the role exists.
 
 ## Route by ownership
 
-- **Explorer** — broad read-only discovery when the relevant subsystem is not already sufficiently mapped.
+- **Repository Explorer (`repo-explorer`)** — broad read-only discovery when the relevant subsystem is not already sufficiently mapped.
 - **Implementation Engineer** — one coherent implementation owner by default.
 - **QA Engineer** — independent acceptance/regression evidence when the change or acceptance contract warrants it.
 - **Security / Reliability Engineer** — independent adversarial review only for material security, authority, durable-state, destructive-operation, concurrency, recovery, or high-impact reliability risk.
@@ -70,4 +70,3 @@ If required evidence is blocked, preserve the distinction between defective code
 If QA establishes a product defect, route the repair to an implementation owner and use independent QA to verify the repaired acceptance boundary when practical.
 
 Keep final reporting concise: outcome, material changes, validation evidence, unresolved risks or blockers, and publication status.
-
