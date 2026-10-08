@@ -29,4 +29,5 @@ A manual result should record:
 - unexpected behavior or cost.
 
 `orchestration/cases.json` is the initial behavioral suite.
+Use the [manual orchestration result template](orchestration/RESULT_TEMPLATE.md) to record each run.
 `bootstrap/` and `config/` contain deterministic local regression checks.
