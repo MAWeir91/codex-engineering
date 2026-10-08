@@ -1,11 +1,17 @@
 [CmdletBinding()]
 param(
-    [string]$RepoRoot = (Split-Path -Parent $PSScriptRoot),
+    [string]$RepoRoot = "",
     [switch]$Quiet
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+# PowerShell 5.1 does not reliably populate $PSScriptRoot while evaluating
+# parameter defaults for a script launched with -File.
+if (-not $PSBoundParameters.ContainsKey("RepoRoot")) {
+    $RepoRoot = Split-Path -Parent $PSScriptRoot
+}
 
 $script:Errors = @()
 $script:Warnings = @()
@@ -355,7 +361,8 @@ try {
         "evals/orchestration/cases.json",
         "evals/orchestration/results/ORCH-001-2026-10-07.md",
         "evals/bootstrap/test-bootstrap.ps1",
-        "evals/config/test-config-ownership.ps1"
+        "evals/config/test-config-ownership.ps1",
+        "evals/validate/test-validator-root.ps1"
     )
 
     foreach ($relative in $required) {
